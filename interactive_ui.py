@@ -1,26 +1,32 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import re
 import base64
 from movie_model import (
-    movie_similarity_df, recommend_movies,
-    predict_sentiment, predict_like, mock_reviews
+    movie_similarity_df,
+    recommend_movies,
+    predict_sentiment,
+    mock_reviews,
+    rf_model,
+    xgb_model
 )
 
-# 🌌 Page setup
+# -------------------------
+# 🎨 Page config and style
+# -------------------------
 st.set_page_config(layout="wide")
 
-# 🔗 Background image (from PNG)
 def get_base64_img(path):
     with open(path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
 img_base64 = get_base64_img("background.png")
 
-# 🌈 Style
 st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Baguet+Script&display=swap');
+
     .stApp {{
         background-image: url("data:image/png;base64,{img_base64}");
         background-size: cover;
@@ -28,6 +34,7 @@ st.markdown(f"""
         background-attachment: fixed;
         background-position: center;
     }}
+
     .custom-title {{
         font-family: 'Baguet Script', cursive;
         font-size: 65px;
@@ -36,6 +43,7 @@ st.markdown(f"""
         margin-top: 10px;
         margin-bottom: 30px;
     }}
+
     .recommend-header {{
         font-weight: 700;
         color: white;
@@ -43,18 +51,18 @@ st.markdown(f"""
         margin-top: 20px;
         margin-bottom: 10px;
     }}
-    .stSelectbox, .stSlider, .stMultiSelect, .stCheckbox {{
+
+    .stSelectbox, .stSlider, .stMultiSelect, .stCheckbox, .stTextInput {{
         background-color: rgba(255, 255, 255, 0.85) !important;
         border-radius: 10px;
         padding: 10px;
     }}
-    .stSlider > div {{
-        background: transparent !important;
-    }}
+
     label, .stMarkdown, .stTextInput > div > div, .stMultiSelect label {{
         color: #000000 !important;
         font-weight: 600;
     }}
+
     .stButton>button {{
         background-color: #f63366;
         color: white;
@@ -62,9 +70,7 @@ st.markdown(f"""
         border-radius: 8px;
         padding: 0.5em 1em;
     }}
-    .block-container {{
-        padding-top: 20px;
-    }}
+
     .stDataFrame {{
         background-color: white;
         border-radius: 10px;
@@ -72,17 +78,24 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# 🎬 Title
+# -------------------------
+# 🎬 App Title
+# -------------------------
 st.markdown("<div class='custom-title'>Comet Movie Recommendation</div>", unsafe_allow_html=True)
 
-# 📊 Load supporting data
+# -------------------------
+# 📦 Load Data
+# -------------------------
 movies_df = pd.read_csv("movies.csv")
 ratings_df = pd.read_csv("ratings_small.csv", usecols=["movieId", "rating"])
 
+# Genre preprocessing
 movies_df['genres'] = movies_df['genres'].apply(lambda x: x.split('|') if pd.notnull(x) else [])
 all_genres = sorted(set(g for genre_list in movies_df['genres'] for g in genre_list))
 
-# 📋 Layout
+# -------------------------
+# 🎛️ Filters (Main layout)
+# -------------------------
 col1, col2 = st.columns([1.4, 2.5])
 
 with col1:
@@ -110,6 +123,7 @@ with col2:
                 release_year = int(re.search(r'\((\d{4})\)', movie).group(1)) if re.search(r'\((\d{4})\)', movie) else 2000
                 movie_id = meta['movieId'].values[0] if not meta.empty else None
 
+                # Filtering logic
                 if selected_genres and not any(g in movie_genres for g in selected_genres):
                     continue
                 if not (year_range[0] <= release_year <= year_range[1]):
@@ -121,9 +135,18 @@ with col2:
                 if not rewatch_pref and (avg_rating is None or avg_rating < min_rating):
                     continue
 
+                # Sentiment analysis
                 review = mock_reviews.get(movie, "This movie was okay.")
                 sentiment = predict_sentiment(review)
-                like_prob = predict_like(meta, avg_rating)
+
+                # Like prediction input features
+                user_activity = 30  # Mock values for illustration
+                user_avg_rating = 3.8
+                genre_vector = [1 if g in movie_genres else 0 for g in movie_similarity_df.columns.tolist()[:18]]
+                like_features = genre_vector + [release_year, user_activity, user_avg_rating]
+
+                rf_like = rf_model.predict([like_features])[0]
+                xgb_like = xgb_model.predict([like_features])[0]
 
                 rows.append({
                     "Movie": movie,
@@ -131,8 +154,9 @@ with col2:
                     "Avg Rating": round(avg_rating, 2) if avg_rating else "N/A",
                     "Genres": ', '.join(movie_genres),
                     "Sentiment": sentiment,
-                    "Like Probability": f"{like_prob*100:.1f}%",
-                    "Sample Review": review
+                    "Sample Review": review,
+                    "RF Like Prediction": "👍" if rf_like else "👎",
+                    "XGB Like Prediction": "👍" if xgb_like else "👎"
                 })
 
             if rows:
@@ -140,3 +164,4 @@ with col2:
                 st.dataframe(pd.DataFrame(rows))
             else:
                 st.warning("⚠️ No movies matched your filters. Try relaxing them.")
+    

@@ -1,106 +1,66 @@
 import pandas as pd
 import numpy as np
 import re
+
+# Collaborative Filtering
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, MultiLabelBinarizer
-from sklearn.ensemble import RandomForestClassifier
+
+# Sentiment Model
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import LabelEncoder
+
+# Like Prediction Models
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics import accuracy_score
 
-# ---------------------
-# 🎥 Collaborative Filtering
-# ---------------------
+# -----------------------------
+# 📦 Load & Process Movie Data
+# -----------------------------
 ratings = pd.read_csv("ratings_small.csv")
-movies_df = pd.read_csv("movies.csv")
-df = pd.merge(ratings, movies_df, on="movieId")
+movies = pd.read_csv("movies.csv")
 
-# Aggressive Filtering
-popular_movies = df["title"].value_counts().head(300).index
-active_users = df["userId"].value_counts().head(1000).index
-df_small = df[df["title"].isin(popular_movies) & df["userId"].isin(active_users)]
+# Collaborative filtering filtering
+df = pd.merge(ratings, movies, on='movieId')
+popular_movies = df['title'].value_counts().head(300).index
+active_users = df['userId'].value_counts().head(1000).index
+df_small = df[df['title'].isin(popular_movies) & df['userId'].isin(active_users)]
 
-# Pivot and similarity matrix
-user_movie_matrix = df_small.pivot_table(index='userId', columns='title', values='rating').fillna(0)
-movie_ratings_matrix = user_movie_matrix.T
+user_movie_matrix = df_small.pivot_table(index='userId', columns='title', values='rating')
+user_movie_matrix_filled = user_movie_matrix.fillna(0)
+
+movie_ratings_matrix = user_movie_matrix_filled.T
 movie_similarity = cosine_similarity(movie_ratings_matrix)
 movie_similarity_df = pd.DataFrame(movie_similarity, index=movie_ratings_matrix.index, columns=movie_ratings_matrix.index)
 
-# Recommendation Function
-def recommend_movies(movie_title, similarity_df, top_n=5):
-    if movie_title not in similarity_df.columns:
-        return f"❌ Movie '{movie_title}' not found."
-    scores = similarity_df[movie_title].sort_values(ascending=False)
-    return scores.iloc[1:top_n+1]
+# -----------------------------
+# 🧠 Sentiment Analysis (Logistic Regression)
+# -----------------------------
+imdb_df = pd.read_csv("IMDB_small.csv")
+imdb_df['sentiment'] = imdb_df['sentiment'].map({'positive': 1, 'negative': 0})
+imdb_df['clean_review'] = imdb_df['review'].apply(lambda x: re.sub(r'<.*?>', '', x.lower()))
 
-# ---------------------
-# 💬 Sentiment Analysis (Logistic Regression)
-# ---------------------
-imdb_df = pd.read_csv("IMDB_small.csv").dropna()
+vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
+X_text = vectorizer.fit_transform(imdb_df['clean_review'])
+y_text = imdb_df['sentiment']
 
-def clean_text(text):
-    text = re.sub(r'<.*?>', '', text)
-    return text.lower()
+X_text_train, X_text_test, y_text_train, y_text_test = train_test_split(X_text, y_text, test_size=0.2, random_state=42)
 
-imdb_df["clean_review"] = imdb_df["review"].apply(clean_text)
-imdb_df["sentiment"] = imdb_df["sentiment"].map({"positive": 1, "negative": 0})
-
-# TF-IDF + Logistic Regression
-tfidf_vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
-X_sent = tfidf_vectorizer.fit_transform(imdb_df["clean_review"])
-y_sent = imdb_df["sentiment"]
-
-X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(X_sent, y_sent, test_size=0.2, random_state=42)
-log_model = LogisticRegression(max_iter=1000)
-log_model.fit(X_train_s, y_train_s)
+lr_model = LogisticRegression(max_iter=1000)
+lr_model.fit(X_text_train, y_text_train)
 
 def predict_sentiment(review_text):
-    cleaned = clean_text(review_text)
-    vec = tfidf_vectorizer.transform([cleaned])
-    pred = log_model.predict(vec)[0]
+    cleaned = re.sub(r'<.*?>', '', review_text.lower())
+    vector = vectorizer.transform([cleaned])
+    pred = lr_model.predict(vector)[0]
     return "positive" if pred == 1 else "negative"
 
-# ---------------------
-# 🔁 Like Prediction (Random Forest)
-# ---------------------
-sample_df = ratings.sample(n=30000, random_state=42).merge(movies_df, on="movieId", how="left")
-sample_df["liked"] = (sample_df["rating"] >= 4).astype(int)
-
-# Extract year
-def extract_year(title):
-    match = re.search(r'\((\d{4})\)', str(title))
-    return int(match.group(1)) if match else np.nan
-
-sample_df["year"] = sample_df["title"].apply(extract_year)
-sample_df["user_activity"] = sample_df.groupby("userId")["movieId"].transform("count")
-sample_df["user_avg_rating"] = sample_df.groupby("userId")["rating"].transform("mean")
-
-# Genre encoding
-sample_df["genres"] = sample_df["genres"].apply(lambda x: str(x).split("|"))
-mlb = MultiLabelBinarizer()
-genre_df = pd.DataFrame(mlb.fit_transform(sample_df["genres"]), columns=mlb.classes_)
-
-sample_df = pd.concat([sample_df.reset_index(drop=True), genre_df], axis=1)
-feature_cols = mlb.classes_.tolist() + ["year", "user_activity", "user_avg_rating"]
-sample_df.dropna(subset=feature_cols, inplace=True)
-
-X_like = sample_df[feature_cols]
-y_like = sample_df["liked"]
-X_train_l, X_test_l, y_train_l, y_test_l = train_test_split(X_like, y_like, test_size=0.2, random_state=42)
-
-rf_model = RandomForestClassifier(n_estimators=100, max_depth=12, random_state=42)
-rf_model.fit(X_train_l, y_train_l)
-
-def predict_like(user_features):
-    """user_features should be a DataFrame with the same structure as X_like"""
-    prediction = rf_model.predict(user_features)[0]
-    return "liked" if prediction == 1 else "not liked"
-
-# ---------------------
-# 🎯 Mock Reviews
-# ---------------------
+# -----------------------------
+# 💬 Mock Reviews
+# -----------------------------
 mock_reviews = {
     "Toy Story 2 (1999)": "Even better than the first! Heartwarming and fun.",
     "Forrest Gump (1994)": "A timeless classic. Forrest is such a lovable character.",
@@ -109,11 +69,68 @@ mock_reviews = {
     "Star Wars: Episode IV - A New Hope (1977)": "Way too slow and outdated for today's audience."
 }
 
-# Exported symbols
+# -----------------------------
+# 🔍 Recommendation Function
+# -----------------------------
+def recommend_movies(movie_title, similarity_df, top_n=5):
+    if movie_title not in similarity_df.columns:
+        return f"❌ Movie '{movie_title}' not found in similarity matrix."
+    scores = similarity_df[movie_title].sort_values(ascending=False)
+    return scores.iloc[1:top_n+1]
+
+# -----------------------------
+# 🧪 Like Prediction Models (Random Forest & XGBoost)
+# -----------------------------
+# Sample and preprocess
+ratings_sampled = ratings.sample(n=30000, random_state=42)
+ratings_sampled = ratings_sampled.merge(movies, on='movieId', how='left')
+ratings_sampled['liked'] = (ratings_sampled['rating'] >= 4).astype(int)
+
+# Extract year
+def extract_year(title):
+    match = re.search(r'\((\d{4})\)', str(title))
+    return int(match.group(1)) if match else np.nan
+
+ratings_sampled['year'] = ratings_sampled['title'].apply(extract_year)
+ratings_sampled['user_activity'] = ratings_sampled.groupby('userId')['movieId'].transform('count')
+ratings_sampled['user_avg_rating'] = ratings_sampled.groupby('userId')['rating'].transform('mean')
+
+# Genre encoding
+ratings_sampled['genres'] = ratings_sampled['genres'].apply(lambda x: str(x).split('|'))
+mlb = MultiLabelBinarizer()
+genre_dummies = mlb.fit_transform(ratings_sampled['genres'])
+genre_df = pd.DataFrame(genre_dummies, columns=mlb.classes_)
+ratings_sampled = pd.concat([ratings_sampled.reset_index(drop=True), genre_df], axis=1)
+
+# Final features
+feature_cols = mlb.classes_.tolist() + ['year', 'user_activity', 'user_avg_rating']
+ratings_sampled.dropna(subset=feature_cols, inplace=True)
+X = ratings_sampled[feature_cols]
+y = ratings_sampled['liked']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Random Forest
+rf_model = RandomForestClassifier(n_estimators=100, max_depth=12, random_state=42)
+rf_model.fit(X_train, y_train)
+rf_pred = rf_model.predict(X_test)
+rf_accuracy = accuracy_score(y_test, rf_pred)
+print("✅ Random Forest Accuracy:", round(rf_accuracy * 100, 2), "%")
+
+# XGBoost
+xgb_model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+xgb_model.fit(X_train, y_train)
+xgb_pred = xgb_model.predict(X_test)
+xgb_accuracy = accuracy_score(y_test, xgb_pred)
+print("✅ XGBoost Accuracy:", round(xgb_accuracy * 100, 2), "%")
+
+# -----------------------------
+# Export for Streamlit
+# -----------------------------
 __all__ = [
     "movie_similarity_df",
     "recommend_movies",
     "predict_sentiment",
-    "predict_like",
-    "mock_reviews"
+    "mock_reviews",
+    "rf_model",
+    "xgb_model"
 ]
