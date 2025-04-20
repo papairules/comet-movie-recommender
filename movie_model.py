@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
 # Step 1: Load only top 1000 active users and top 300 movies using chunking
-ratings_path = "ratings.csv"
+ratings_path = "ratings_small.csv"
 movies_df = pd.read_csv("movies.csv")
 
 # Chunk read ratings
@@ -59,7 +59,7 @@ movie_similarity_df = pd.DataFrame(movie_similarity, index=movie_ratings_matrix.
 # -----------------------------
 # Sentiment model setup
 # -----------------------------
-imdb_df = pd.read_csv("IMDB Dataset.csv")
+imdb_df = pd.read_csv("IMDB_small.csv")
 imdb_df['clean_review'] = imdb_df['review'].apply(lambda x: re.sub(r'<.*?>', '', x.lower()))
 
 label_encoder = LabelEncoder()

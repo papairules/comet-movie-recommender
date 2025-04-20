@@ -8,11 +8,12 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from wordcloud import WordCloud
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 # -----------------------------
 # 📦 Load & Clean Ratings Data
 # -----------------------------
-ratings = pd.read_csv('ratings.csv')
+ratings = pd.read_csv('ratings_small.csv')
 movies = pd.read_csv('movies.csv')
 df = pd.merge(ratings, movies, on='movieId')
 
@@ -46,7 +47,7 @@ def recommend_movies(movie_title, similarity_df, top_n=5):
 # -----------------------------
 # 🧠 Load IMDb Reviews & Train Sentiment Model
 # -----------------------------
-imdb_df = pd.read_csv('IMDB Dataset.csv')
+imdb_df = pd.read_csv('IMDB_small.csv')
 
 def clean_text(text):
     text = re.sub(r'<.*?>', '', text)
@@ -65,7 +66,6 @@ nb_model = MultinomialNB()
 nb_model.fit(X_train, y_train)
 
 # Evaluate model
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 y_pred = nb_model.predict(X_test)
 print("✅ Accuracy:", accuracy_score(y_test, y_pred))
 print(classification_report(y_test, y_pred))
@@ -120,24 +120,32 @@ plt.tight_layout()
 plt.show()
 
 # -----------------------------
-# ☁️ WordClouds
+# ☁️ WordClouds with Safety Check
 # -----------------------------
 positive_reviews = ' '.join(df_vis[df_vis['Sentiment'] == 'positive']['Sample Review'])
 negative_reviews = ' '.join(df_vis[df_vis['Sentiment'] == 'negative']['Sample Review'])
 
 plt.figure(figsize=(14, 6))
 
-plt.subplot(1, 2, 1)
-wc_pos = WordCloud(background_color='white', colormap='Greens').generate(positive_reviews)
-plt.imshow(wc_pos, interpolation='bilinear')
-plt.title('Positive Sentiment WordCloud', fontsize=14)
-plt.axis('off')
+# Positive
+if positive_reviews.strip():
+    plt.subplot(1, 2, 1)
+    wc_pos = WordCloud(background_color='white', colormap='Greens').generate(positive_reviews)
+    plt.imshow(wc_pos, interpolation='bilinear')
+    plt.title('Positive Sentiment WordCloud', fontsize=14)
+    plt.axis('off')
+else:
+    print("⚠️ No positive reviews available for WordCloud.")
 
-plt.subplot(1, 2, 2)
-wc_neg = WordCloud(background_color='white', colormap='Reds').generate(negative_reviews)
-plt.imshow(wc_neg, interpolation='bilinear')
-plt.title('Negative Sentiment WordCloud', fontsize=14)
-plt.axis('off')
+# Negative
+if negative_reviews.strip():
+    plt.subplot(1, 2, 2)
+    wc_neg = WordCloud(background_color='white', colormap='Reds').generate(negative_reviews)
+    plt.imshow(wc_neg, interpolation='bilinear')
+    plt.title('Negative Sentiment WordCloud', fontsize=14)
+    plt.axis('off')
+else:
+    print("⚠️ No negative reviews available for WordCloud.")
 
 plt.tight_layout()
 plt.show()
