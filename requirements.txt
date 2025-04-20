@@ -1,6 +1,7 @@
-streamlit
+xgboost
+scikit-learn
 pandas
 numpy
-scikit-learn
+streamlit
 matplotlib
 wordcloud

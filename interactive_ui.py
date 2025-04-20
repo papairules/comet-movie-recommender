@@ -1,27 +1,26 @@
 import streamlit as st
 import pandas as pd
 import re
-from movie_model import movie_similarity_df, recommend_movies, predict_sentiment, mock_reviews
+import base64
+from movie_model import (
+    movie_similarity_df, recommend_movies,
+    predict_sentiment, predict_like, mock_reviews
+)
 
 # 🌌 Page setup
 st.set_page_config(layout="wide")
 
-# 🌌 Inject custom background and font style
-import base64
-
-# Read and convert image to base64
+# 🔗 Background image (from PNG)
 def get_base64_img(path):
     with open(path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-# Convert background.png
 img_base64 = get_base64_img("background.png")
 
-# Inject style
+# 🌈 Style
 st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Baguet+Script&display=swap');
-
     .stApp {{
         background-image: url("data:image/png;base64,{img_base64}");
         background-size: cover;
@@ -29,7 +28,6 @@ st.markdown(f"""
         background-attachment: fixed;
         background-position: center;
     }}
-
     .custom-title {{
         font-family: 'Baguet Script', cursive;
         font-size: 65px;
@@ -38,7 +36,6 @@ st.markdown(f"""
         margin-top: 10px;
         margin-bottom: 30px;
     }}
-
     .recommend-header {{
         font-weight: 700;
         color: white;
@@ -46,23 +43,18 @@ st.markdown(f"""
         margin-top: 20px;
         margin-bottom: 10px;
     }}
-
-    /* 💡 Lighten all widget backgrounds */
-    .stSelectbox, .stSlider, .stMultiSelect, .stCheckbox, .stTextInput {{
+    .stSelectbox, .stSlider, .stMultiSelect, .stCheckbox {{
         background-color: rgba(255, 255, 255, 0.85) !important;
         border-radius: 10px;
         padding: 10px;
     }}
-
     .stSlider > div {{
         background: transparent !important;
     }}
-
     label, .stMarkdown, .stTextInput > div > div, .stMultiSelect label {{
         color: #000000 !important;
         font-weight: 600;
     }}
-
     .stButton>button {{
         background-color: #f63366;
         color: white;
@@ -70,11 +62,9 @@ st.markdown(f"""
         border-radius: 8px;
         padding: 0.5em 1em;
     }}
-
     .block-container {{
         padding-top: 20px;
     }}
-
     .stDataFrame {{
         background-color: white;
         border-radius: 10px;
@@ -82,20 +72,17 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-
-
-# 🌠 Custom Heading
+# 🎬 Title
 st.markdown("<div class='custom-title'>Comet Movie Recommendation</div>", unsafe_allow_html=True)
 
-# 📦 Load metadata
+# 📊 Load supporting data
 movies_df = pd.read_csv("movies.csv")
 ratings_df = pd.read_csv("ratings_small.csv", usecols=["movieId", "rating"])
 
-# 🎭 Genres list
 movies_df['genres'] = movies_df['genres'].apply(lambda x: x.split('|') if pd.notnull(x) else [])
 all_genres = sorted(set(g for genre_list in movies_df['genres'] for g in genre_list))
 
-# 📊 Layout
+# 📋 Layout
 col1, col2 = st.columns([1.4, 2.5])
 
 with col1:
@@ -136,6 +123,7 @@ with col2:
 
                 review = mock_reviews.get(movie, "This movie was okay.")
                 sentiment = predict_sentiment(review)
+                like_prob = predict_like(meta, avg_rating)
 
                 rows.append({
                     "Movie": movie,
@@ -143,6 +131,7 @@ with col2:
                     "Avg Rating": round(avg_rating, 2) if avg_rating else "N/A",
                     "Genres": ', '.join(movie_genres),
                     "Sentiment": sentiment,
+                    "Like Probability": f"{like_prob*100:.1f}%",
                     "Sample Review": review
                 })
 
