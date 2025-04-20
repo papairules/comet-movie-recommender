@@ -1,0 +1,24 @@
+# Large datasets
+ratings.csv
+IMDB Dataset.csv
+tags.csv
+
+# Cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter and logs
+*.ipynb_checkpoints
+*.log
+ratings.csv 
+"IMDB Dataset.csv" 
+tags.csv 
+__pycache__/ 
+*.pyc 
+ratings.csv 
+"IMDB Dataset.csv" 
+tags.csv 
+__pycache__/ 
+*.pyc 
