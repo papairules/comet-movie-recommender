@@ -40,7 +40,7 @@ st.markdown(f"""
     .custom-title {{
         font-family: 'Baguet Script', cursive;
         font-size: 65px;
-        color: #c04f15;
+        color: #975923;
         text-align: center;
         margin-top: 10px;
         margin-bottom: 30px;
@@ -101,7 +101,11 @@ all_genres = sorted(set(g for genre_list in movies_df['genres'] for g in genre_l
 col1, col2 = st.columns([1.4, 2.5])
 
 with col1:
-    st.markdown("### 🎛️ Filter Your Preferences")
+    st.markdown("""
+    <div style='font-size:24px; font-weight:700; color:#975923; margin-bottom:10px;'>
+        🎛️ Filter Your Preferences
+    </div>
+""", unsafe_allow_html=True)
     selected_genres = st.multiselect("Preferred Genres", options=all_genres)
     year_range = st.slider("Release Year Range", 1950, 2025, (1990, 2020))
     min_rating = st.slider("Minimum Average Rating", 0.0, 5.0, 3.0, step=0.1)
