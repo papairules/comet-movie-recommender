@@ -9,7 +9,9 @@ from movie_model import (
     predict_sentiment,
     mock_reviews,
     rf_model,
-    xgb_model
+    xgb_model,
+    mlb,
+    feature_cols
 )
 
 # -------------------------
@@ -139,10 +141,10 @@ with col2:
                 review = mock_reviews.get(movie, "This movie was okay.")
                 sentiment = predict_sentiment(review)
 
-                # Like prediction input features
-                user_activity = 30  # Mock values for illustration
+                # Correct feature vector using mlb.classes_
+                user_activity = 30  # Static mock values
                 user_avg_rating = 3.8
-                genre_vector = [1 if g in movie_genres else 0 for g in movie_similarity_df.columns.tolist()[:18]]
+                genre_vector = [1 if g in movie_genres else 0 for g in mlb.classes_]
                 like_features = genre_vector + [release_year, user_activity, user_avg_rating]
 
                 rf_like = rf_model.predict([like_features])[0]
@@ -164,4 +166,3 @@ with col2:
                 st.dataframe(pd.DataFrame(rows))
             else:
                 st.warning("⚠️ No movies matched your filters. Try relaxing them.")
-    
