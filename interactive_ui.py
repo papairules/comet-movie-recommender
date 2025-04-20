@@ -89,7 +89,7 @@ st.markdown("<div class='custom-title'>Comet Movie Recommendation</div>", unsafe
 
 # 📦 Load metadata
 movies_df = pd.read_csv("movies.csv")
-ratings_df = pd.read_csv("ratings.csv", usecols=["movieId", "rating"])
+ratings_df = pd.read_csv("ratings_small.csv", usecols=["movieId", "rating"])
 
 # 🎭 Genres list
 movies_df['genres'] = movies_df['genres'].apply(lambda x: x.split('|') if pd.notnull(x) else [])
